@@ -1,0 +1,9 @@
+name: AdvancedTPA
+version: 1.0-SNAPSHOT
+main: com.advancedtpa.Main
+api-version: '1.20'
+commands:
+  tpa:
+    description: TPA command
+  tpaccept:
+    description: Accept TPA
