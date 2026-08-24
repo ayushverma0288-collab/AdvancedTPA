@@ -389,7 +389,8 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
         Component finalMsg = Component.text()
                 .append(playerNameComp)
                 .append(Component.text(": ").color(TextColor.color(255, 255, 255)))
-                .append(Component.text(event.getMessage()));
+                .append(Component.text(event.getMessage()))
+                .build();
 
         event.setCancelled(true);
         for (Player recipient : Bukkit.getOnlinePlayers()) {
@@ -397,4 +398,4 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
         }
         Bukkit.getConsoleSender().sendMessage("[" + p.getName() + "] " + event.getMessage());
     }
-}
+                }
