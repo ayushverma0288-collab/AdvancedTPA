@@ -3,7 +3,19 @@ version: 1.0-SNAPSHOT
 main: com.advancedtpa.Main
 api-version: '1.20'
 commands:
+  tpahub:
+    description: Open TPA Hub GUI
   tpa:
-    description: TPA command
+    description: Send a TPA request
+  tpahere:
+    description: Send a TPAHere request
   tpaccept:
-    description: Accept TPA
+    description: Accept a TPA request
+  tpdeny:
+    description: Deny a TPA request
+  tpacancel:
+    description: Cancel your TPA request
+  tpacannal:
+    description: Cancel alias
+  tpagui:
+    description: Open TPA GUI
