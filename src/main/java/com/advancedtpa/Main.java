@@ -61,10 +61,12 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
             return true;
         }
         if (command.getName().equalsIgnoreCase("tpa")) {
-            if (args.length < 0) return true;
+            if (args.length < 1) return true;
             Player target = Bukkit.getPlayer(args[0]);
             if (target != null && target != player) {
                 tpaRequests.put(target.getUniqueId(), player.getUniqueId());
+                target.playSound(target.getLocation(), Sound.ENTITY_ARROW_HIT_PLAYER, 1f, 1f);
+                player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
                 target.sendMessage(ChatColor.GOLD + "[TPA] " + ChatColor.YELLOW + player.getName() + " sent a TPA request!");
                 player.sendMessage(ChatColor.YELLOW + "Request sent to " + target.getName());
             }
@@ -74,6 +76,7 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
             if (tpaRequests.containsKey(player.getUniqueId())) {
                 Player req = Bukkit.getPlayer(tpaRequests.remove(player.getUniqueId()));
                 if (req != null) {
+                    player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
                     req.sendMessage(ChatColor.GREEN + "Request accepted!");
                     startCountdown(req, player.getLocation());
                 }
@@ -95,6 +98,7 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
             gui.addItem(head);
         }
         player.openInventory(gui);
+        player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1f);
     }
 
     @EventHandler
@@ -106,8 +110,10 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
                 SkullMeta meta = (SkullMeta) e.getCurrentItem().getItemMeta();
                 Player target = meta.getOwningPlayer().getPlayer();
                 p.closeInventory();
+                p.playSound(p.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.5f);
                 if (target != null) {
                     tpaRequests.put(target.getUniqueId(), p.getUniqueId());
+                    target.playSound(target.getLocation(), Sound.ENTITY_ARROW_HIT_PLAYER, 1f, 1f);
                     target.sendMessage(ChatColor.YELLOW + p.getName() + " sent TPA via GUI!");
                     p.sendMessage(ChatColor.YELLOW + "Request sent!");
                 }
@@ -126,18 +132,21 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
                 Location start = startLocations.get(player.getUniqueId());
                 if (start != null && player.getLocation().distanceSquared(start) > 1) {
                     player.sendTitle(ChatColor.RED + "Cancelled!", "You moved!", 0, 30, 10);
+                    player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1f, 1f);
                     startLocations.remove(player.getUniqueId());
                     this.cancel();
                     return;
                 }
                 if (count[0] > 0) {
                     player.sendTitle(ChatColor.AQUA + "Teleporting in " + count[0], "Don't move!", 0, 25, 0);
+                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1f);
                     Particle[] particles = {Particle.PORTAL, Particle.FLAME, Particle.HEART, Particle.ELECTRIC_SPARK, Particle.SPELL_WITCH, Particle.TOTEM, Particle.CRIT_MAGIC};
                     player.spawnParticle(particles[rand.nextInt(particles.length)], player.getLocation().add(0, 1, 0), 20, 0.5, 1, 0.5, 0.1);
                     count[0]--;
                 } else {
                     player.teleport(targetLoc);
                     player.sendTitle(ChatColor.GREEN + "Teleported!", "", 0, 30, 10);
+                    player.playSound(targetLoc, Sound.ENTITY_ENDERMAN_TELEPORT, 1f, 1f);
                     startLocations.remove(player.getUniqueId());
                     this.cancel();
                 }
@@ -149,7 +158,10 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
     public void onChat(AsyncChatEvent event) {
         Player p = event.getPlayer();
         double money = (economy != null) ? economy.getBalance(p) : 0.0;
-        String hoverStr = "§6Stats\n§eMoney: §a$" + money + "\n§eKills: §c" + p.getStatistic(Statistic.PLAYER_KILLS) + "\n§eDeaths: §b" + p.getStatistic(Statistic.DEATHS);
+        int kills = p.getStatistic(Statistic.PLAYER_KILLS);
+        int deaths = p.getStatistic(Statistic.DEATHS);
+        
+        String hoverStr = "§6Stats\n§eMoney: §a$" + money + "\n§eKills: §c" + kills + "\n§eDeaths: §b" + deaths;
         Component msg = LegacyComponentSerializer.legacySection().deserialize("§e" + p.getName() + "§7: ")
                 .hoverEvent(HoverEvent.showText(LegacyComponentSerializer.legacySection().deserialize(hoverStr)))
                 .append(event.message());
