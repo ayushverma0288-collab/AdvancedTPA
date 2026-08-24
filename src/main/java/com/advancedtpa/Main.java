@@ -61,7 +61,10 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
             return true;
         }
         if (command.getName().equalsIgnoreCase("tpa")) {
-            if (args.length < 1) return true;
+            if (args.length < 1) {
+                player.sendMessage(ChatColor.RED + "Usage: /tpa <player>");
+                return true;
+            }
             Player target = Bukkit.getPlayer(args[0]);
             if (target != null && target != player) {
                 tpaRequests.put(target.getUniqueId(), player.getUniqueId());
