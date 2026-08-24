@@ -74,23 +74,24 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
                 target.playSound(target.getLocation(), Sound.ENTITY_ARROW_HIT_PLAYER, 1f, 1f);
                 player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
 
-                // Clickable Accept and Deny components
-                Component acceptBtn = Component.text("[ACCEPT] ")
+                // Clickable Text Components for TPA Request
+                Component acceptCmd = Component.text("/tpaccept")
                         .color(TextColor.color(0, 255, 0))
                         .clickEvent(ClickEvent.runCommand("/tpaccept"))
-                        .hoverEvent(HoverEvent.showText(Component.text("Click to accept TPA request")));
+                        .hoverEvent(HoverEvent.showText(Component.text("Click to run /tpaccept")));
 
-                Component denyBtn = Component.text("[DENY]")
+                Component denyCmd = Component.text("/tpdeny")
                         .color(TextColor.color(255, 0, 0))
                         .clickEvent(ClickEvent.runCommand("/tpdeny"))
-                        .hoverEvent(HoverEvent.showText(Component.text("Click to deny TPA request")));
+                        .hoverEvent(HoverEvent.showText(Component.text("Click to run /tpdeny")));
 
-                Component msg = Component.text("TPA request from " + player.getName() + " ")
+                Component tpaMsg = Component.text("TPA request from " + player.getName() + ". Do ")
                         .color(TextColor.color(255, 215, 0))
-                        .append(acceptBtn)
-                        .append(denyBtn);
+                        .append(acceptCmd)
+                        .append(Component.text(" or ").color(TextColor.color(255, 255, 255)))
+                        .append(denyCmd);
 
-                target.sendMessage(msg);
+                target.sendMessage(tpaMsg);
                 player.sendMessage(ChatColor.YELLOW + "Request sent to " + target.getName());
             } else {
                 player.sendMessage(ChatColor.RED + "Player not found!");
@@ -158,22 +159,23 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
                         tpaRequests.put(target.getUniqueId(), p.getUniqueId());
                         target.playSound(target.getLocation(), Sound.ENTITY_ARROW_HIT_PLAYER, 1f, 1f);
 
-                        Component acceptBtn = Component.text("[ACCEPT] ")
+                        Component acceptCmd = Component.text("/tpaccept")
                                 .color(TextColor.color(0, 255, 0))
                                 .clickEvent(ClickEvent.runCommand("/tpaccept"))
-                                .hoverEvent(HoverEvent.showText(Component.text("Click to accept TPA request")));
+                                .hoverEvent(HoverEvent.showText(Component.text("Click to run /tpaccept")));
 
-                        Component denyBtn = Component.text("[DENY]")
+                        Component denyCmd = Component.text("/tpdeny")
                                 .color(TextColor.color(255, 0, 0))
                                 .clickEvent(ClickEvent.runCommand("/tpdeny"))
-                                .hoverEvent(HoverEvent.showText(Component.text("Click to deny TPA request")));
+                                .hoverEvent(HoverEvent.showText(Component.text("Click to run /tpdeny")));
 
-                        Component msg = Component.text("TPA request from " + p.getName() + " ")
+                        Component tpaMsg = Component.text("TPA request from " + p.getName() + ". Do ")
                                 .color(TextColor.color(255, 215, 0))
-                                .append(acceptBtn)
-                                .append(denyBtn);
+                                .append(acceptCmd)
+                                .append(Component.text(" or ").color(TextColor.color(255, 255, 255)))
+                                .append(denyCmd);
 
-                        target.sendMessage(msg);
+                        target.sendMessage(tpaMsg);
                         p.sendMessage(ChatColor.YELLOW + "Request sent!");
                     }
                 }
@@ -191,7 +193,7 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
             public void run() {
                 Location start = startLocations.get(player.getUniqueId());
                 if (start != null && player.getLocation().distanceSquared(start) > 1) {
-                    player.sendTitle(ChatColor.RED + "Cancelled!", "You moved!", 0, 30, 10);
+                    player.sendTitle(ChatColor.RED + "Teleport Cancelled!", "You moved!", 0, 30, 10);
                     player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1f, 1f);
                     startLocations.remove(player.getUniqueId());
                     activeTeleports.remove(player.getUniqueId());
@@ -199,10 +201,9 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
                     return;
                 }
                 if (count[0] > 0) {
-                    player.sendTitle(ChatColor.AQUA + "Teleporting in " + count[0], "Don't move!", 0, 25, 0);
+                    player.sendTitle(ChatColor.AQUA + "Teleporting in " + count[0] + "s", ChatColor.YELLOW + "Don't move!", 0, 25, 0);
                     player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1f);
-                    Particle[] particles = {Particle.PORTAL, Particle.FLAME, Particle.HEART, Particle.ELECTRIC_SPARK};
-                    player.spawnParticle(particles[rand.nextInt(particles.length)], player.getLocation().add(0, 1, 0), 20, 0.5, 1, 0.5, 0.1);
+                    player.spawnParticle(Particle.PORTAL, player.getLocation().add(0, 1, 0), 20, 0.5, 1, 0.5, 0.1);
                     count[0]--;
                 } else {
                     player.teleport(targetLoc);
@@ -224,20 +225,19 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
         double money = (economy != null) ? economy.getBalance(p) : 0.0;
         int kills = p.getStatistic(Statistic.PLAYER_KILLS);
         int deaths = p.getStatistic(Statistic.DEATHS);
+        String rank = p.isOp() ? "Admin" : "Member"; // Custom rank placeholder
 
-        // Hover text containing stats
-        String hoverStr = "§6Stats\n§eMoney: §a$" + money + "\n§eKills: §c" + kills + "\n§eDeaths: §b" + deaths;
+        // Hover text for chat name
+        String hoverStr = "§6&lPlayer Stats\n§eMoney: §a$" + money + "\n§eKills: §c" + kills + "\n§eDeaths: §b" + deaths + "\n§eRank: §d" + rank;
         Component hoverComp = LegacyComponentSerializer.legacySection().deserialize(hoverStr);
 
-        // Player name with hover event
         Component playerNameComp = Component.text(p.getName())
                 .color(TextColor.color(255, 255, 0))
                 .hoverEvent(HoverEvent.showText(hoverComp));
 
-        // Final structured chat format
         Component finalMsg = Component.text()
                 .append(playerNameComp)
-                .append(Component.text(": "))
+                .append(Component.text(": ").color(TextColor.color(255, 255, 255)))
                 .append(event.message())
                 .build();
 
