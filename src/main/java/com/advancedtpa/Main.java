@@ -1,6 +1,5 @@
 package com.advancedtpa;
 
-import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -21,9 +20,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -53,6 +52,7 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
     private final HashSet<UUID> tpaDisabled = new HashSet<>();
     private final HashMap<UUID, BukkitTask> activeTeleports = new HashMap<>();
     private final HashMap<UUID, Location> startLocations = new HashMap<>();
+    private final HashMap<UUID, UUID> guiSelectedTarget = new HashMap<>();
     private static Economy economy = null;
 
     @Override
@@ -64,12 +64,20 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
         getLogger().info("AdvancedTPA Enabled Successfully!");
         getServer().getPluginManager().registerEvents(this, this);
 
-        if (getCommand("tpa") != null) getCommand("tpa").setExecutor(this);
-        if (getCommand("tpahere") != null) getCommand("tpahere").setExecutor(this);
-        if (getCommand("tpaccept") != null) getCommand("tpaccept").setExecutor(this);
-        if (getCommand("tpdeny") != null) getCommand("tpdeny").setExecutor(this);
-        if (getCommand("tpacancel") != null) getCommand("tpacancel").setExecutor(this);
-        if (getCommand("tpagui") != null) getCommand("tpagui").setExecutor(this);
+        registerCmd("tpahub", this);
+        registerCmd("tpa", this);
+        registerCmd("tpahere", this);
+        registerCmd("tpaccept", this);
+        registerCmd("tpdeny", this);
+        registerCmd("tpacancel", this);
+        registerCmd("tpacannal", this);
+        registerCmd("tpagui", this);
+    }
+
+    private void registerCmd(String name, CommandExecutor exec) {
+        if (getCommand(name) != null) {
+            getCommand(name).setExecutor(exec);
+        }
     }
 
     @Override
@@ -78,7 +86,7 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
         Player player = (Player) sender;
         String cmdName = command.getName().toLowerCase();
 
-        if (cmdName.equals("tpagui")) {
+        if (cmdName.equals("tpahub") || cmdName.equals("tpagui")) {
             openTpaGui(player);
             return true;
         }
@@ -102,7 +110,7 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
             }
 
             if (args.length < 1) {
-                player.sendMessage(ChatColor.RED + "Usage: /tpa <player> | /tpa toggle | /tpa cancel");
+                player.sendMessage(ChatColor.RED + "Usage: /tpahub | /tpa <player> | /tpa toggle | /tpa cancel");
                 return true;
             }
 
@@ -136,12 +144,12 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
                     reqSender.playSound(reqSender.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
 
                     if (!data.isTpaHere) {
-                        reqSender.sendMessage(ChatColor.GREEN + "Your TPA request was accepted!");
-                        player.sendMessage(ChatColor.GREEN + "You accepted the TPA request!");
+                        reqSender.sendMessage(ChatColor.GREEN + "Your TPA request was accepted by " + player.getName() + "!");
+                        player.sendMessage(ChatColor.GREEN + "You accepted " + reqSender.getName() + "'s TPA request!");
                         startCountdown(reqSender, player.getLocation());
                     } else {
-                        player.sendMessage(ChatColor.GREEN + "You accepted the TPAHere request!");
-                        reqSender.sendMessage(ChatColor.GREEN + "Your TPAHere request was accepted!");
+                        player.sendMessage(ChatColor.GREEN + "You accepted " + reqSender.getName() + "'s TPAHere request!");
+                        reqSender.sendMessage(ChatColor.GREEN + player.getName() + " accepted your TPAHere request!");
                         startCountdown(player, reqSender.getLocation());
                     }
                 } else {
@@ -171,7 +179,7 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
     }
 
     private void sendTpa(Player sender, Player target, boolean isTpaHere) {
-        if (target == null || target.equals(sender)) {
+        if (target == null || !target.isOnline() || target.equals(sender)) {
             sender.sendMessage(ChatColor.RED + "Player not found or invalid!");
             return;
         }
@@ -227,7 +235,7 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
     }
 
     private void openTpaGui(Player player) {
-        Inventory gui = Bukkit.createInventory(null, 54, ChatColor.DARK_PURPLE + "Online Players (TPA GUI)");
+        Inventory gui = Bukkit.createInventory(null, 54, ChatColor.DARK_PURPLE + "Online Players (TPA Hub)");
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (online.equals(player)) continue;
             ItemStack head = new ItemStack(Material.PLAYER_HEAD);
@@ -236,7 +244,8 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
                 meta.setOwningPlayer(online);
                 meta.setDisplayName(ChatColor.GREEN + online.getName());
                 List<String> lore = new ArrayList<>();
-                lore.add(ChatColor.YELLOW + "Click to send TPA request!");
+                lore.add(ChatColor.YELLOW + "Left-Click: Send TPA");
+                lore.add(ChatColor.AQUA + "Right-Click: Send TPAHere");
                 meta.setLore(lore);
                 head.setItemMeta(meta);
             }
@@ -246,26 +255,83 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
         player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.7f, 1f);
     }
 
+    private void openActionGui(Player player, Player target) {
+        guiSelectedTarget.put(player.getUniqueId(), target.getUniqueId());
+        Inventory actionGui = Bukkit.createInventory(null, 27, ChatColor.DARK_BLUE + "Action: " + target.getName());
+
+        ItemStack tpaBtn = new ItemStack(Material.LIME_CONCRETE);
+        ItemName(tpaBtn, ChatColor.GREEN + "Send TPA", ChatColor.YELLOW + "Click to teleport to " + target.getName());
+
+        ItemStack tpahereBtn = new ItemStack(Material.CYAN_CONCRETE);
+        ItemName(tpahereBtn, ChatColor.AQUA + "Send TPAHere", ChatColor.YELLOW + "Click to call " + target.getName());
+
+        ItemStack backBtn = new ItemStack(Material.BARRIER);
+        ItemName(backBtn, ChatColor.RED + "Back to Players", ChatColor.GRAY + "Return to online list");
+
+        actionGui.setItem(11, tpaBtn);
+        actionGui.setItem(15, tpahereBtn);
+        actionGui.setItem(22, backBtn);
+
+        player.openInventory(actionGui);
+        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.8f, 1.2f);
+    }
+
+    private void ItemName(ItemStack item, String name, String loreLine) {
+        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(name);
+            List<String> lore = new ArrayList<>();
+            lore.add(loreLine);
+            meta.setLore(lore);
+            item.setItemMeta(meta);
+        }
+    }
+
     @EventHandler
     public void onClick(InventoryClickEvent e) {
-        if (e.getView().getTitle().equals(ChatColor.DARK_PURPLE + "Online Players (TPA GUI)")) {
-            e.setCancelled(true); // Head inventory mein kabhi nahi aayega, fully protected!
+        String title = e.getView().getTitle();
+        if (title.equals(ChatColor.DARK_PURPLE + "Online Players (TPA Hub)")) {
+            e.setCancelled(true);
             if (e.getCurrentItem() != null && e.getCurrentItem().getType() == Material.PLAYER_HEAD) {
                 Player p = (Player) e.getWhoClicked();
                 SkullMeta meta = (SkullMeta) e.getCurrentItem().getItemMeta();
                 if (meta != null && meta.getOwningPlayer() != null) {
                     Player target = meta.getOwningPlayer().getPlayer();
-                    p.closeInventory();
-                    
-                    // Acha sa sound head click par
-                    p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.8f, 1.5f);
-                    
                     if (target != null) {
-                        sendTpa(p, target, false);
+                        p.playSound(p.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.8f, 1.5f);
+                        if (e.isRightClick()) {
+                            p.closeInventory();
+                            sendTpa(p, target, true);
+                        } else {
+                            openActionGui(p, target);
+                        }
                     } else {
                         p.sendMessage(ChatColor.RED + "Player is offline!");
                     }
                 }
+            }
+        } else if (title.startsWith(ChatColor.DARK_BLUE + "Action: ")) {
+            e.setCancelled(true);
+            Player p = (Player) e.getWhoClicked();
+            ItemStack item = e.getCurrentItem();
+            if (item == null) return;
+
+            UUID targetUuid = guiSelectedTarget.get(p.getUniqueId());
+            Player target = (targetUuid != null) ? Bukkit.getPlayer(targetUuid) : null;
+
+            if (item.getType() == Material.BARRIER) {
+                p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 0.7f, 0.8f);
+                openTpaGui(p);
+            } else if (item.getType() == Material.LIME_CONCRETE) {
+                p.closeInventory();
+                p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.9f, 1f);
+                if (target != null) sendTpa(p, target, false);
+                else p.sendMessage(ChatColor.RED + "Player is offline!");
+            } else if (item.getType() == Material.CYAN_CONCRETE) {
+                p.closeInventory();
+                p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.9f, 1f);
+                if (target != null) sendTpa(p, target, true);
+                else p.sendMessage(ChatColor.RED + "Player is offline!");
             }
         }
     }
@@ -288,7 +354,7 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
                 }
                 if (count[0] > 0) {
                     player.sendTitle(ChatColor.AQUA + "Teleporting in " + count[0] + "s", ChatColor.YELLOW + "Don't move!", 0, 25, 0);
-                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1f);
+                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1.2f);
                     player.spawnParticle(Particle.PORTAL, player.getLocation().add(0, 1, 0), 20, 0.5, 1, 0.5, 0.1);
                     count[0]--;
                 } else {
@@ -306,7 +372,7 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
     }
 
     @EventHandler
-    public void onChat(AsyncChatEvent event) {
+    public void onChat(AsyncPlayerChatEvent event) {
         Player p = event.getPlayer();
         double money = (economy != null) ? economy.getBalance(p) : 0.0;
         int kills = p.getStatistic(Statistic.PLAYER_KILLS);
@@ -323,9 +389,12 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
         Component finalMsg = Component.text()
                 .append(playerNameComp)
                 .append(Component.text(": ").color(TextColor.color(255, 255, 255)))
-                .append(event.message())
-                .build();
+                .append(Component.text(event.getMessage()));
 
-        event.renderer((source, sourceDisplayName, message, viewer) -> finalMsg);
-    }
+        event.setCancelled(true);
+        for (Player recipient : Bukkit.getOnlinePlayers()) {
+            recipient.sendMessage(finalMsg);
         }
+        Bukkit.getConsoleSender().sendMessage("[" + p.getName() + "] " + event.getMessage());
+    }
+}
