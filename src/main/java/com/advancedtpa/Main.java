@@ -173,7 +173,7 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
         int kills = p.getStatistic(Statistic.PLAYER_KILLS);
         int deaths = p.getStatistic(Statistic.DEATHS);
         
-        String prefix = ChatColor.GOLD + "[Stats | Money: $" + money + " | K:" + kills + " D:" + deaths + "] ";
+        String prefix = ChatColor.GOLD + "[Money: $" + money + " | K:" + kills + " | D:" + deaths + "] ";
         event.setFormat(prefix + ChatColor.YELLOW + p.getName() + ChatColor.WHITE + ": " + event.getMessage());
     }
 }
