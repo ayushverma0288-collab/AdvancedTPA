@@ -1,9 +1,5 @@
 package com.advancedtpa;
 
-import io.papermc.paper.event.player.AsyncChatEvent;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.event.HoverEvent;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -19,6 +15,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
@@ -46,9 +43,9 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
         }
         getLogger().info("AdvancedTPA Enabled!");
         getServer().getPluginManager().registerEvents(this, this);
-        getCommand("tpa").setExecutor(this);
-        getCommand("tpaccept").setExecutor(this);
-        getCommand("tpagui").setExecutor(this);
+        if (getCommand("tpa") != null) getCommand("tpa").setExecutor(this);
+        if (getCommand("tpaccept") != null) getCommand("tpaccept").setExecutor(this);
+        if (getCommand("tpagui") != null) getCommand("tpagui").setExecutor(this);
     }
 
     @Override
@@ -72,6 +69,8 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
                 player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
                 target.sendMessage(ChatColor.GOLD + "[TPA] " + ChatColor.YELLOW + player.getName() + " sent a TPA request!");
                 player.sendMessage(ChatColor.YELLOW + "Request sent to " + target.getName());
+            } else {
+                player.sendMessage(ChatColor.RED + "Player not found!");
             }
             return true;
         }
@@ -83,6 +82,8 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
                     req.sendMessage(ChatColor.GREEN + "Request accepted!");
                     startCountdown(req, player.getLocation());
                 }
+            } else {
+                player.sendMessage(ChatColor.RED + "No pending TPA request!");
             }
             return true;
         }
@@ -95,9 +96,11 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
             if (online.equals(player)) continue;
             ItemStack head = new ItemStack(Material.PLAYER_HEAD);
             SkullMeta meta = (SkullMeta) head.getItemMeta();
-            meta.setOwningPlayer(online);
-            meta.setDisplayName(ChatColor.GREEN + online.getName());
-            head.setItemMeta(meta);
+            if (meta != null) {
+                meta.setOwningPlayer(online);
+                meta.setDisplayName(ChatColor.GREEN + online.getName());
+                head.setItemMeta(meta);
+            }
             gui.addItem(head);
         }
         player.openInventory(gui);
@@ -111,14 +114,16 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
             if (e.getCurrentItem() != null && e.getCurrentItem().getType() == Material.PLAYER_HEAD) {
                 Player p = (Player) e.getWhoClicked();
                 SkullMeta meta = (SkullMeta) e.getCurrentItem().getItemMeta();
-                Player target = meta.getOwningPlayer().getPlayer();
-                p.closeInventory();
-                p.playSound(p.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.5f);
-                if (target != null) {
-                    tpaRequests.put(target.getUniqueId(), p.getUniqueId());
-                    target.playSound(target.getLocation(), Sound.ENTITY_ARROW_HIT_PLAYER, 1f, 1f);
-                    target.sendMessage(ChatColor.YELLOW + p.getName() + " sent TPA via GUI!");
-                    p.sendMessage(ChatColor.YELLOW + "Request sent!");
+                if (meta != null && meta.getOwningPlayer() != null) {
+                    Player target = meta.getOwningPlayer().getPlayer();
+                    p.closeInventory();
+                    p.playSound(p.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.5f);
+                    if (target != null) {
+                        tpaRequests.put(target.getUniqueId(), p.getUniqueId());
+                        target.playSound(target.getLocation(), Sound.ENTITY_ARROW_HIT_PLAYER, 1f, 1f);
+                        target.sendMessage(ChatColor.YELLOW + p.getName() + " sent TPA via GUI!");
+                        p.sendMessage(ChatColor.YELLOW + "Request sent!");
+                    }
                 }
             }
         }
@@ -129,7 +134,7 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
         final int[] count = {5};
         Random rand = new Random();
 
-        new BukkitRunnable() {
+        BukkitTask task = new BukkitRunnable() {
             @Override
             public void run() {
                 Location start = startLocations.get(player.getUniqueId());
@@ -137,13 +142,14 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
                     player.sendTitle(ChatColor.RED + "Cancelled!", "You moved!", 0, 30, 10);
                     player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1f, 1f);
                     startLocations.remove(player.getUniqueId());
+                    activeTeleports.remove(player.getUniqueId());
                     this.cancel();
                     return;
                 }
                 if (count[0] > 0) {
                     player.sendTitle(ChatColor.AQUA + "Teleporting in " + count[0], "Don't move!", 0, 25, 0);
                     player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1f);
-                    Particle[] particles = {Particle.PORTAL, Particle.FLAME, Particle.HEART, Particle.ELECTRIC_SPARK, Particle.SPELL_WITCH, Particle.TOTEM, Particle.CRIT_MAGIC};
+                    Particle[] particles = {Particle.PORTAL, Particle.FLAME, Particle.HEART, Particle.ELECTRIC_SPARK};
                     player.spawnParticle(particles[rand.nextInt(particles.length)], player.getLocation().add(0, 1, 0), 20, 0.5, 1, 0.5, 0.1);
                     count[0]--;
                 } else {
@@ -151,23 +157,23 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
                     player.sendTitle(ChatColor.GREEN + "Teleported!", "", 0, 30, 10);
                     player.playSound(targetLoc, Sound.ENTITY_ENDERMAN_TELEPORT, 1f, 1f);
                     startLocations.remove(player.getUniqueId());
+                    activeTeleports.remove(player.getUniqueId());
                     this.cancel();
                 }
             }
         }.runTaskTimer(this, 0L, 20L);
+
+        activeTeleports.put(player.getUniqueId(), task);
     }
 
     @EventHandler
-    public void onChat(AsyncChatEvent event) {
+    public void onChat(AsyncPlayerChatEvent event) {
         Player p = event.getPlayer();
         double money = (economy != null) ? economy.getBalance(p) : 0.0;
         int kills = p.getStatistic(Statistic.PLAYER_KILLS);
         int deaths = p.getStatistic(Statistic.DEATHS);
         
-        String hoverStr = "§6Stats\n§eMoney: §a$" + money + "\n§eKills: §c" + kills + "\n§eDeaths: §b" + deaths;
-        Component msg = LegacyComponentSerializer.legacySection().deserialize("§e" + p.getName() + "§7: ")
-                .hoverEvent(HoverEvent.showText(LegacyComponentSerializer.legacySection().deserialize(hoverStr)))
-                .append(event.message());
-        event.renderer((s, d, m, v) -> msg);
+        String prefix = ChatColor.GOLD + "[Stats | Money: $" + money + " | K:" + kills + " D:" + deaths + "] ";
+        event.setFormat(prefix + ChatColor.YELLOW + p.getName() + ChatColor.WHITE + ": " + event.getMessage());
     }
 }
