@@ -1,5 +1,11 @@
 package com.advancedtpa;
 
+import io.papermc.paper.event.player.AsyncChatEvent;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -15,7 +21,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
@@ -45,6 +50,7 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
         getServer().getPluginManager().registerEvents(this, this);
         if (getCommand("tpa") != null) getCommand("tpa").setExecutor(this);
         if (getCommand("tpaccept") != null) getCommand("tpaccept").setExecutor(this);
+        if (getCommand("tpdeny") != null) getCommand("tpdeny").setExecutor(this);
         if (getCommand("tpagui") != null) getCommand("tpagui").setExecutor(this);
     }
 
@@ -67,7 +73,24 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
                 tpaRequests.put(target.getUniqueId(), player.getUniqueId());
                 target.playSound(target.getLocation(), Sound.ENTITY_ARROW_HIT_PLAYER, 1f, 1f);
                 player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
-                target.sendMessage(ChatColor.GOLD + "[TPA] " + ChatColor.YELLOW + player.getName() + " sent a TPA request!");
+
+                // Clickable Accept and Deny components
+                Component acceptBtn = Component.text("[ACCEPT] ")
+                        .color(TextColor.color(0, 255, 0))
+                        .clickEvent(ClickEvent.runCommand("/tpaccept"))
+                        .hoverEvent(HoverEvent.showText(Component.text("Click to accept TPA request")));
+
+                Component denyBtn = Component.text("[DENY]")
+                        .color(TextColor.color(255, 0, 0))
+                        .clickEvent(ClickEvent.runCommand("/tpdeny"))
+                        .hoverEvent(HoverEvent.showText(Component.text("Click to deny TPA request")));
+
+                Component msg = Component.text("TPA request from " + player.getName() + " ")
+                        .color(TextColor.color(255, 215, 0))
+                        .append(acceptBtn)
+                        .append(denyBtn);
+
+                target.sendMessage(msg);
                 player.sendMessage(ChatColor.YELLOW + "Request sent to " + target.getName());
             } else {
                 player.sendMessage(ChatColor.RED + "Player not found!");
@@ -80,8 +103,21 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
                 if (req != null) {
                     player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
                     req.sendMessage(ChatColor.GREEN + "Request accepted!");
+                    player.sendMessage(ChatColor.GREEN + "You accepted the TPA request!");
                     startCountdown(req, player.getLocation());
                 }
+            } else {
+                player.sendMessage(ChatColor.RED + "No pending TPA request!");
+            }
+            return true;
+        }
+        if (command.getName().equalsIgnoreCase("tpdeny")) {
+            if (tpaRequests.containsKey(player.getUniqueId())) {
+                Player req = Bukkit.getPlayer(tpaRequests.remove(player.getUniqueId()));
+                if (req != null) {
+                    req.sendMessage(ChatColor.RED + "Your TPA request was denied.");
+                }
+                player.sendMessage(ChatColor.YELLOW + "TPA request denied.");
             } else {
                 player.sendMessage(ChatColor.RED + "No pending TPA request!");
             }
@@ -121,7 +157,23 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
                     if (target != null) {
                         tpaRequests.put(target.getUniqueId(), p.getUniqueId());
                         target.playSound(target.getLocation(), Sound.ENTITY_ARROW_HIT_PLAYER, 1f, 1f);
-                        target.sendMessage(ChatColor.YELLOW + p.getName() + " sent TPA via GUI!");
+
+                        Component acceptBtn = Component.text("[ACCEPT] ")
+                                .color(TextColor.color(0, 255, 0))
+                                .clickEvent(ClickEvent.runCommand("/tpaccept"))
+                                .hoverEvent(HoverEvent.showText(Component.text("Click to accept TPA request")));
+
+                        Component denyBtn = Component.text("[DENY]")
+                                .color(TextColor.color(255, 0, 0))
+                                .clickEvent(ClickEvent.runCommand("/tpdeny"))
+                                .hoverEvent(HoverEvent.showText(Component.text("Click to deny TPA request")));
+
+                        Component msg = Component.text("TPA request from " + p.getName() + " ")
+                                .color(TextColor.color(255, 215, 0))
+                                .append(acceptBtn)
+                                .append(denyBtn);
+
+                        target.sendMessage(msg);
                         p.sendMessage(ChatColor.YELLOW + "Request sent!");
                     }
                 }
@@ -167,13 +219,28 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
     }
 
     @EventHandler
-    public void onChat(AsyncPlayerChatEvent event) {
+    public void onChat(AsyncChatEvent event) {
         Player p = event.getPlayer();
         double money = (economy != null) ? economy.getBalance(p) : 0.0;
         int kills = p.getStatistic(Statistic.PLAYER_KILLS);
         int deaths = p.getStatistic(Statistic.DEATHS);
-        
-        String prefix = ChatColor.GOLD + "[Money: $" + money + " | K:" + kills + " | D:" + deaths + "] ";
-        event.setFormat(prefix + ChatColor.YELLOW + p.getName() + ChatColor.WHITE + ": " + event.getMessage());
+
+        // Hover text containing stats
+        String hoverStr = "§6Stats\n§eMoney: §a$" + money + "\n§eKills: §c" + kills + "\n§eDeaths: §b" + deaths;
+        Component hoverComp = LegacyComponentSerializer.legacySection().deserialize(hoverStr);
+
+        // Player name with hover event
+        Component playerNameComp = Component.text(p.getName())
+                .color(TextColor.color(255, 255, 0))
+                .hoverEvent(HoverEvent.showText(hoverComp));
+
+        // Final structured chat format
+        Component finalMsg = Component.text()
+                .append(playerNameComp)
+                .append(Component.text(": "))
+                .append(event.message())
+                .build();
+
+        event.renderer((source, sourceDisplayName, message, viewer) -> finalMsg);
     }
 }
