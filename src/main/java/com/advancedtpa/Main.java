@@ -4,7 +4,6 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.TextColor;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -12,7 +11,6 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
-import org.bukkit.Statistic;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -374,28 +372,6 @@ public final class Main extends JavaPlugin implements Listener, CommandExecutor 
     @EventHandler
     public void onChat(AsyncPlayerChatEvent event) {
         Player p = event.getPlayer();
-        double money = (economy != null) ? economy.getBalance(p) : 0.0;
-        int kills = p.getStatistic(Statistic.PLAYER_KILLS);
-        int deaths = p.getStatistic(Statistic.DEATHS);
-        String rank = p.isOp() ? "Admin" : "Member";
-
-        String hoverStr = "§6§lPlayer Stats\n§eMoney: §a$" + money + "\n§eKills: §c" + kills + "\n§eDeaths: §b" + deaths + "\n§eRank: §d" + rank;
-        Component hoverComp = LegacyComponentSerializer.legacySection().deserialize(hoverStr);
-
-        Component playerNameComp = Component.text(p.getName())
-                .color(TextColor.color(255, 255, 0))
-                .hoverEvent(HoverEvent.showText(hoverComp));
-
-        Component finalMsg = Component.text()
-                .append(playerNameComp)
-                .append(Component.text(": ").color(TextColor.color(255, 255, 255)))
-                .append(Component.text(event.getMessage()))
-                .build();
-
-        event.setCancelled(true);
-        for (Player recipient : Bukkit.getOnlinePlayers()) {
-            recipient.sendMessage(finalMsg);
-        }
-        Bukkit.getConsoleSender().sendMessage("[" + p.getName() + "] " + event.getMessage());
+        event.setFormat(ChatColor.YELLOW + p.getName() + ChatColor.WHITE + ": " + ChatColor.RESET + event.getMessage());
     }
-                }
+            }
